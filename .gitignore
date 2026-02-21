@@ -1,0 +1,26 @@
+# Binaries
+gopherdrive
+*.exe
+
+# Uploaded files (user data, not source code)
+data/*
+!data/.gitkeep
+
+# Temp files
+*.tmp
+*.log
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+sample.txt
+large_file.bin
+run.sh

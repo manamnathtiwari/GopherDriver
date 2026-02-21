@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package gopherdrive;
+
+option go_package = "github.com/mtiwari1/gopherdrive/proto";
+
+// MetadataService is the internal gatekeeper for the MySQL database.
+// It ensures file metadata is persisted correctly.
+service MetadataService {
+  // RegisterFile creates a new file record in the database.
+  rpc RegisterFile(RegisterFileRequest) returns (RegisterFileResponse);
+
+  // UpdateStatus changes the processing status of a file.
+  rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
+}
+
+message RegisterFileRequest {
+  string id        = 1;
+  string file_path = 2;
+  string status    = 3;
+}
+
+message RegisterFileResponse {
+  string id     = 1;
+  string status = 2;
+}
+
+message UpdateStatusRequest {
+  string id     = 1;
+  string status = 2;
+}
+
+message UpdateStatusResponse {
+  string id     = 1;
+  string status = 2;
+}

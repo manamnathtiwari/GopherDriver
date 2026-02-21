@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GopherDrive — File Processing Dashboard</title>
+    <meta name="description" content="GopherDrive high-concurrency file processing system dashboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ===== CSS RESET & VARIABLES ===== */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(31, 41, 55, 0.8);
+            --border: rgba(75, 85, 99, 0.4);
+            --border-glow: rgba(56, 189, 248, 0.3);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.15);
+            --success: #34d399;
+            --success-bg: rgba(52, 211, 153, 0.1);
+            --warning: #fbbf24;
+            --warning-bg: rgba(251, 191, 36, 0.1);
+            --error: #f87171;
+            --error-bg: rgba(248, 113, 113, 0.1);
+            --pending: #a78bfa;
+            --pending-bg: rgba(167, 139, 250, 0.1);
+            --gradient-1: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+            --gradient-2: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            --shadow-glow: 0 0 30px rgba(56, 189, 248, 0.1);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ===== ANIMATED BACKGROUND ===== */
+        .bg-mesh {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bg-mesh::before {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+            top: -200px;
+            right: -100px;
+            animation: meshFloat 20s ease-in-out infinite;
+        }
+
+        .bg-mesh::after {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+            bottom: -150px;
+            left: -100px;
+            animation: meshFloat 25s ease-in-out infinite reverse;
+        }
+
+        @keyframes meshFloat {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(50px, -30px) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-30px, 20px) scale(0.95);
+            }
+        }
+
+        /* ===== LAYOUT ===== */
+        .app {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 24px 80px;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0 32px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 32px;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+        }
+
+        .logo-text h1 {
+            font-size: 22px;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text p {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .health-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .health-badge:hover {
+            border-color: var(--border-glow);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .health-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .health-dot.degraded {
+            background: var(--warning);
+        }
+
+        .health-dot.offline {
+            background: var(--error);
+            animation: none;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+            }
+
+            50% {
+                opacity: 0.8;
+                box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
+            }
+        }
+
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            letter-spacing: -1px;
+        }
+
+        .stat-value.accent {
+            color: var(--accent);
+        }
+
+        .stat-value.success {
+            color: var(--success);
+        }
+
+        .stat-value.warning {
+            color: var(--warning);
+        }
+
+        .stat-value.error {
+            color: var(--error);
+        }
+
+        /* ===== MAIN GRID ===== */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        /* ===== CARD BASE ===== */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* ===== UPLOAD ZONE ===== */
+        .upload-card {
+            grid-column: 1 / 2;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-sm);
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--accent-glow);
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: var(--accent);
+            transform: scale(1.01);
+        }
+
+        .upload-zone:hover::before,
+        .upload-zone.drag-over::before {
+            opacity: 1;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+
+        .upload-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            position: relative;
+        }
+
+        .upload-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            position: relative;
+        }
+
+        .upload-subtitle span {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* ===== PROGRESS ===== */
+        .upload-progress {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .upload-progress.active {
+            display: block;
+        }
+
+        .progress-bar-track {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 100px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--gradient-2);
+            border-radius: 100px;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        /* ===== SEARCH CARD ===== */
+        .search-card {
+            grid-column: 2 / 3;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: var(--radius-xs);
+            font-family: var(--font-sans);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.25);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* ===== FILE DETAIL RESULT ===== */
+        .file-detail {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .file-detail.active {
+            display: block;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .detail-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 14px;
+        }
+
+        .detail-item.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .detail-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        /* ===== FILES TABLE ===== */
+        .files-card {
+            grid-column: 1 / -1;
+        }
+
+        .files-table-wrap {
+            overflow-x: auto;
+        }
+
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .files-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .files-table td {
+            padding: 14px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+            vertical-align: middle;
+        }
+
+        .files-table tbody tr {
+            transition: var(--transition);
+        }
+
+        .files-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .files-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .file-id-cell {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--accent);
+            cursor: pointer;
+        }
+
+        .file-id-cell:hover {
+            text-decoration: underline;
+        }
+
+        .hash-cell {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .size-cell {
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .status-badge.completed {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+
+        .status-badge.pending {
+            background: var(--pending-bg);
+            color: var(--pending);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+
+        .status-badge.failed {
+            background: var(--error-bg);
+            color: var(--error);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+
+        .status-badge.processing {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+
+        /* ===== HEALTH MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            width: 90%;
+            max-width: 420px;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .health-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .health-row:last-child {
+            border-bottom: none;
+        }
+
+        .health-row-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .health-row-value {
+            font-size: 13px;
+            font-family: var(--font-mono);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        .health-row-value.ok {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .health-row-value.bad {
+            background: var(--error-bg);
+            color: var(--error);
+        }
+
+        .modal-close {
+            margin-top: 24px;
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        /* ===== NOTIFICATION TOAST ===== */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            min-width: 320px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: var(--transition);
+        }
+
+        .toast.success {
+            border-left: 3px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 3px solid var(--error);
+        }
+
+        .toast.info {
+            border-left: 3px solid var(--accent);
+        }
+
+        .toast-icon {
+            font-size: 20px;
+        }
+
+        .toast-msg {
+            font-size: 13px;
+            flex: 1;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.removing {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-card,
+            .search-card,
+            .files-card {
+                grid-column: auto;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ===== LOADING SHIMMER ===== */
+        @keyframes shimmer {
+            0% {
+                background-position: -200px 0;
+            }
+
+            100% {
+                background-position: 200px 0;
+            }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 75%);
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        /* ===== REFRESH BUTTON ===== */
+        .btn-ghost {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-mesh"></div>
+
+    <div class="app">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-group">
+                <div class="logo-icon">🐹</div>
+                <div class="logo-text">
+                    <h1>GopherDrive</h1>
+                    <p>File Processing Engine</p>
+                </div>
+            </div>
+            <div class="health-badge" id="healthBadge" onclick="showHealthModal()">
+                <div class="health-dot" id="healthDot"></div>
+                <span id="healthText">Checking...</span>
+            </div>
+        </header>
+
+        <!-- STATS -->
+        <section class="stats-bar" id="statsBar">
+            <div class="stat-card">
+                <div class="stat-label">Total Files</div>
+                <div class="stat-value accent" id="statTotal">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value success" id="statCompleted">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pending</div>
+                <div class="stat-value warning" id="statPending">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value error" id="statFailed">—</div>
+            </div>
+        </section>
+
+        <!-- MAIN GRID -->
+        <section class="main-grid">
+            <!-- UPLOAD -->
+            <div class="card upload-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon" style="background: var(--accent-glow); color: var(--accent);">⬆
+                        </div>
+                        Upload File
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📂</div>
+                        <div class="upload-title">Drag & drop any file here</div>
+                        <div class="upload-subtitle">or <span>browse</span> to choose — max 32 MB</div>
+                    </div>
+                    <input type="file" id="fileInput" multiple>
+                    <div class="upload-progress" id="uploadProgress">
+                        <div class="progress-bar-track">
+                            <div class="progress-bar-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">Uploading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SEARCH -->
+            <div class="card search-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon" style="background: rgba(167,139,250,0.1); color: var(--pending);">
+                            🔍</div>
+                        Look Up File
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="search-input-group">
+                        <input type="text" class="search-input" id="searchInput" placeholder="Paste file UUID...">
+                        <button class="btn btn-primary" onclick="searchFile()">Search</button>
+                    </div>
+                    <div class="file-detail" id="fileDetail">
+                        <div class="detail-grid" id="detailGrid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILES TABLE -->
+            <div class="card files-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon" style="background: rgba(52,211,153,0.1); color: var(--success);">📋
+                        </div>
+                        Recent Files
+                    </div>
+                    <button class="btn-ghost" onclick="loadFiles()">
+                        <span id="refreshIcon">↻</span> Refresh
+                    </button>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <div class="files-table-wrap">
+                        <table class="files-table">
+                            <thead>
+                                <tr>
+                                    <th>File ID</th>
+                                    <th>Status</th>
+                                    <th>Content Info</th>
+                                    <th>Size</th>
+                                    <th>Uploaded</th>
+                                    <th>Path</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filesBody">
+                                <tr>
+                                    <td colspan="6">
+                                        <div class="empty-state">
+                                            <div class="empty-state-icon">📁</div>
+                                            <div class="empty-state-text">Upload files to see them here</div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- HEALTH MODAL -->
+    <div class="modal-overlay" id="healthModal" onclick="hideHealthModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title">🏥 System Health</div>
+            <div id="healthDetails"></div>
+            <button class="modal-close" onclick="hideHealthModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        const API = '';
+
+        // ===== TOAST NOTIFICATIONS =====
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type]}</span>
+                <span class="toast-msg">${message}</span>
+                <button class="toast-close" onclick="this.parentElement.classList.add('removing'); setTimeout(() => this.parentElement.remove(), 300)">✕</button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // ===== HEALTH CHECK =====
+        let healthData = null;
+
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API}/healthz`);
+                healthData = await res.json();
+                const dot = document.getElementById('healthDot');
+                const text = document.getElementById('healthText');
+
+                if (healthData.status === 'ok') {
+                    dot.className = 'health-dot';
+                    text.textContent = 'All Systems OK';
+                } else {
+                    dot.className = 'health-dot degraded';
+                    text.textContent = 'Degraded';
+                }
+            } catch (e) {
+                document.getElementById('healthDot').className = 'health-dot offline';
+                document.getElementById('healthText').textContent = 'Offline';
+                healthData = { status: 'offline', database: 'unreachable', disk: 'unknown' };
+            }
+        }
+
+        function showHealthModal() {
+            const modal = document.getElementById('healthModal');
+            const details = document.getElementById('healthDetails');
+
+            if (!healthData) return;
+
+            details.innerHTML = ['status', 'database', 'disk'].map(key => {
+                const val = healthData[key] || 'unknown';
+                const ok = val === 'ok' || val === 'connected';
+                return `
+                    <div class="health-row">
+                        <span class="health-row-label">${key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                        <span class="health-row-value ${ok ? 'ok' : 'bad'}">${val}</span>
+                    </div>
+                `;
+            }).join('');
+
+            modal.classList.add('active');
+        }
+
+        function hideHealthModal(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('healthModal').classList.remove('active');
+        }
+
+        // ===== FILE UPLOAD =====
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                Array.from(e.dataTransfer.files).forEach(file => uploadFile(file));
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                Array.from(fileInput.files).forEach(file => uploadFile(file));
+            }
+        });
+
+        async function uploadFile(file) {
+            if (file.size > 32 * 1024 * 1024) {
+                showToast('File exceeds 32 MB limit', 'error');
+                return;
+            }
+
+            const progress = document.getElementById('uploadProgress');
+            const fill = document.getElementById('progressFill');
+            const pText = document.getElementById('progressText');
+
+            progress.classList.add('active');
+            fill.style.width = '0%';
+            pText.textContent = `Uploading ${file.name}...`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Simulate progress with XHR for real progress events
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', e => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    fill.style.width = pct + '%';
+                    pText.textContent = `Uploading ${file.name}... ${pct}%`;
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const data = JSON.parse(xhr.responseText);
+                    fill.style.width = '100%';
+                    pText.textContent = `✓ Uploaded — ID: ${data.id}`;
+                    showToast(`File uploaded successfully!<br><code style="font-size:11px;color:var(--accent)">${data.id}</code>`, 'success');
+
+                    // Auto-refresh file list after a brief delay for processing
+                    setTimeout(() => {
+                        loadFiles();
+                        progress.classList.remove('active');
+                    }, 1500);
+                } else {
+                    pText.textContent = `✗ Upload failed (${xhr.status})`;
+                    showToast('Upload failed: ' + xhr.statusText, 'error');
+                    setTimeout(() => progress.classList.remove('active'), 3000);
+                }
+                fileInput.value = '';
+            });
+
+            xhr.addEventListener('error', () => {
+                pText.textContent = '✗ Network error';
+                showToast('Network error — is the server running?', 'error');
+                setTimeout(() => progress.classList.remove('active'), 3000);
+            });
+
+            xhr.open('POST', `${API}/files`);
+            xhr.send(formData);
+        }
+
+        // ===== SEARCH FILE =====
+        async function searchFile() {
+            const id = document.getElementById('searchInput').value.trim();
+            if (!id) {
+                showToast('Please enter a file UUID', 'info');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/files/${id}`);
+                if (!res.ok) {
+                    showToast(res.status === 404 ? 'File not found' : 'Error fetching file', 'error');
+                    document.getElementById('fileDetail').classList.remove('active');
+                    return;
+                }
+
+                const data = await res.json();
+                renderFileDetail(data);
+            } catch (e) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        document.getElementById('searchInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') searchFile();
+        });
+
+        function renderFileDetail(data) {
+            const grid = document.getElementById('detailGrid');
+            const statusClass = data.status || 'pending';
+            const meta = data.metadata || {};
+
+            let extraInfo = '';
+            if (meta.width && meta.height) {
+                extraInfo = `
+                <div class="detail-item">
+                    <div class="detail-label">Dimensions</div>
+                    <div class="detail-value accent">${meta.width} × ${meta.height} px</div>
+                </div>`;
+            }
+            if (meta.words && meta.lines) {
+                extraInfo = `
+                <div class="detail-item">
+                    <div class="detail-label">Text Stats</div>
+                    <div class="detail-value accent">${meta.words} words / ${meta.lines} lines</div>
+                </div>`;
+            }
+            if (meta.mime_type) {
+                extraInfo += `
+                <div class="detail-item">
+                    <div class="detail-label">Type</div>
+                    <div class="detail-value">${meta.mime_type}</div>
+                </div>`;
+            }
+
+            grid.innerHTML = `
+                <div class="detail-item full-width">
+                    <div class="detail-label">File ID</div>
+                    <div class="detail-value">${data.id}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Status</div>
+                    <div class="detail-value"><span class="status-badge ${statusClass}"><span class="status-dot"></span>${data.status}</span></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Size</div>
+                    <div class="detail-value">${formatBytes(data.size)}</div>
+                </div>
+                ${extraInfo}
+                <div class="detail-item full-width">
+                    <div class="detail-label">Uploaded</div>
+                    <div class="detail-value">${new Date(data.created_at).toLocaleString()}</div>
+                </div>
+                <div class="detail-item full-width">
+                    <div class="detail-label">SHA-256 Hash</div>
+                    <div class="detail-value">${data.hash || '—'}</div>
+                </div>
+                <div class="detail-item full-width">
+                    <div class="detail-label">File Path</div>
+                    <div class="detail-value">${data.file_path}</div>
+                </div>
+            `;
+
+            document.getElementById('fileDetail').classList.add('active');
+        }
+
+        // ===== LOAD ALL FILES =====
+        let allFiles = [];
+
+        async function loadFiles() {
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('spin');
+
+            try {
+                const res = await fetch(`${API}/files`);
+                if (!res.ok) throw new Error('Failed');
+                allFiles = await res.json();
+                renderFiles(allFiles);
+                updateStats(allFiles);
+            } catch (e) {
+                // API might not support listing — that's OK
+                document.getElementById('filesBody').innerHTML = `
+                    <tr><td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📁</div>
+                            <div class="empty-state-text">Upload files to see them here</div>
+                        </div>
+                    </td></tr>
+                `;
+            }
+
+            setTimeout(() => icon.classList.remove('spin'), 500);
+        }
+
+        function renderFiles(files) {
+            const body = document.getElementById('filesBody');
+
+            if (!files || files.length === 0) {
+                body.innerHTML = `
+                    <tr><td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📁</div>
+                            <div class="empty-state-text">No files uploaded yet</div>
+                        </div>
+                    </td></tr>
+                `;
+                return;
+            }
+
+            body.innerHTML = files.map(f => {
+                const meta = f.metadata || {};
+                let typeBadge = '';
+                if (meta.mime_type) {
+                    const shortType = meta.mime_type.split('/')[1] || meta.mime_type;
+                    typeBadge = `<span style="font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.05);border-radius:4px;color:var(--text-secondary);text-transform:uppercase">${shortType}</span>`;
+                }
+
+                return `
+                <tr>
+                    <td><span class="file-id-cell" onclick="lookupFile('${f.id}')" title="${f.id}">${f.id.substring(0, 8)}…</span></td>
+                    <td><span class="status-badge ${f.status}"><span class="status-dot"></span>${f.status}</span></td>
+                    <td>
+                        <div style="display:flex;flex-direction:column;gap:2px">
+                            <span class="hash-cell" title="${f.hash || ''}">${f.hash ? f.hash.substring(0, 16) + '…' : '—'}</span>
+                            ${typeBadge}
+                        </div>
+                    </td>
+                    <td><span class="size-cell">${formatBytes(f.size)}</span></td>
+                    <td style="font-size:12px;color:var(--text-muted)">${timeAgo(new Date(f.created_at))}</td>
+                    <td style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono)">${f.file_path || '—'}</td>
+                </tr>
+            `}).join('');
+        }
+
+        function timeAgo(date) {
+            if (!date) return '—';
+            // Handle negative time diffs due to server/client timezone mismatch by using Math.abs
+            const seconds = Math.abs(Math.floor((new Date() - date) / 1000));
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + "y ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + "mo ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + "d ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + "h ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + "m ago";
+            return Math.floor(seconds) + "s ago";
+        }
+
+        function updateStats(files) {
+            if (!files) return;
+            document.getElementById('statTotal').textContent = files.length;
+            document.getElementById('statCompleted').textContent = files.filter(f => f.status === 'completed').length;
+            document.getElementById('statPending').textContent = files.filter(f => f.status === 'pending' || f.status === 'processing').length;
+            document.getElementById('statFailed').textContent = files.filter(f => f.status === 'failed').length;
+        }
+
+        function lookupFile(id) {
+            document.getElementById('searchInput').value = id;
+            searchFile();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ===== HELPERS =====
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // ===== INIT =====
+        checkHealth();
+        loadFiles();
+        setInterval(checkHealth, 15000);
+        setInterval(loadFiles, 10000);
+    </script>
+</body>
+
+</html>
