@@ -81,17 +81,23 @@ scalability and performance.
 graph LR
     User -->|POST /files| REST[REST API]
     REST -->|Stream| Disk[Local Storage]
-    REST -->|Submit Job| Queue[Job Channel]
     REST -->|gRPC Register| DB[(MySQL)]
-    
-    subgraph WorkerPool[Worker Pool - Goroutines]
+    REST -->|Submit Job| Queue[Job Channel]
+
+    subgraph WorkerPool[Worker Pool - 5 Goroutines]
+        Queue --> W0
         Queue --> W1
-        Queue --> W2
-        Queue --> WN
+        Queue --> W4
     end
-    
-    WN --> Analyzer[Hasher & Metadata Analyzer]
-    WN -->|gRPC Update| DB
+
+    W0 -->|Result| RC[Results Channel]
+    W1 -->|Result| RC
+    W4 -->|Result| RC
+
+    RC --> RH[Results Handler Goroutine]
+    RH -->|gRPC UpdateMetadata| DB
+
+    REST -->|202 Accepted| User
 ```
 
 ------------------------------------------------------------------------
